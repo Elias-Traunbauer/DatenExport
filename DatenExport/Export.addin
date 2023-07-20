@@ -12,13 +12,13 @@
     <VenderDescription>HH DA</VenderDescription>
   </AddIn>
   <AddIn Type="Command">
-    <Name>RevitConnect</Name>
+    <Name>Show Revit Connect</Name>
     <FullClassName>DatenExport.ShowRevitConnect</FullClassName>
     <Text>Show RevitConnect</Text>
     <Description>Export</Description>
     <VisibilityMode>AlwaysVisible</VisibilityMode>
     <Assembly>C:\Users\trauni\source\repos\DatenExport\DatenExport\bin\Debug\DatenExport.dll</Assembly>
-    <AddInId>0b0b4b1a-8b9d-4b9e-9b9b-9b9b9b8b9b9b</AddInId>
+    <AddInId>0b0b4b1a-8b9d-4b9e-9b9b-9b9b9b8b9b9e</AddInId>
     <VendorId>WZ</VendorId>
     <VenderDescription>HH DA</VenderDescription>
   </AddIn>
