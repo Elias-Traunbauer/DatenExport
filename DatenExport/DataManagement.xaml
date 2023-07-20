@@ -1,0 +1,38 @@
+﻿<Window x:Class="DatenExport.DataManagement"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:DatenExport"
+             mc:Ignorable="d" 
+             d:DesignHeight="400" d:DesignWidth="300"
+        Width="300px"
+        Height="500px"
+        >
+    <Grid>
+        <GroupBox Header="Export" Margin="5 0 5 5">
+            <StackPanel>
+                <GroupBox x:Name="GroupBox_Details" Header="Details" Margin="5 0 5 5">
+                    <StackPanel>
+                        <Label>Export Name</Label>
+                        <TextBox x:Name="ExportName" Text="{Binding SelectedExportName, Mode=TwoWay}" />
+                        <Label>Kategorie</Label>
+                        <ComboBox x:Name="Category" SelectedItem="{Binding SelectedCategory, Mode=TwoWay}" />
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox x:Name="GroupBox_Settings"  Header="Settings" Margin="5 0 5 5">
+                    <StackPanel>
+                        <CheckBox>Upload</CheckBox>
+                        <Button Name="Button_Export" Click="Button_Export_Click">Export</Button>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox x:Name="GroupBox_Status" IsEnabled="False" Header="Status" Margin="5 0 5 5">
+                    <StackPanel>
+                        <Label Name="Label_Status">Waiting for command...</Label>
+                        <ProgressBar x:Name="ProgressBar_Status" Margin="0 5 0 0" Height="20px"></ProgressBar>
+                    </StackPanel>
+                </GroupBox>
+            </StackPanel>
+        </GroupBox>
+    </Grid>
+</Window>

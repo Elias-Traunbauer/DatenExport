@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>RevitConnect</Name>
+    <FullClassName>DatenExport.Application</FullClassName>
+    <Text>RevitConnect</Text>
+    <Description>RevitConnect</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+    <Assembly>C:\Users\trauni\source\repos\DatenExport\DatenExport\bin\Debug\DatenExport.dll</Assembly>
+    <AddInId>e4a9ea44-6be4-40ca-aae1-123d7621cd0b</AddInId>
+    <VendorId>WZ</VendorId>
+    <VenderDescription>HH DA</VenderDescription>
+  </AddIn>
+  <AddIn Type="Command">
+    <Name>RevitConnect</Name>
+    <FullClassName>DatenExport.ShowRevitConnect</FullClassName>
+    <Text>Show RevitConnect</Text>
+    <Description>Export</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+    <Assembly>C:\Users\trauni\source\repos\DatenExport\DatenExport\bin\Debug\DatenExport.dll</Assembly>
+    <AddInId>0b0b4b1a-8b9d-4b9e-9b9b-9b9b9b8b9b9b</AddInId>
+    <VendorId>WZ</VendorId>
+    <VenderDescription>HH DA</VenderDescription>
+  </AddIn>
+</RevitAddIns>
