@@ -1,4 +1,5 @@
-﻿using Autodesk.Revit.DB.IFC;
+﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.IFC;
 using Autodesk.Revit.UI;
 using Newtonsoft.Json;
 using System;
@@ -17,7 +18,7 @@ using System.Windows.Forms;
 
 namespace DatenExport
 {
-    public partial class RevitConnect : Form
+    public partial class RevitConnect : System.Windows.Forms.Form
     {
         private const string basePath = "/api/Revit/";
         private readonly Config config;
@@ -49,7 +50,7 @@ namespace DatenExport
 
         private void CheckIfActionRequested()
         {
-            
+
         }
 
         public Action<string> MessageCallback { get; set; }
@@ -160,17 +161,21 @@ namespace DatenExport
             });
 
         }
-
+        private object ProjectInfo { get; set; }
         private void ProvideProject()
         {
             HttpClient httpClient = new HttpClient();
             httpClient.BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text + basePath);
 
-            HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, "ProjectInfo");
-            msg.Content = JsonContent.Create(new
+            if (ProjectInfo == null)
             {
-                Token = config.ApiSecret,
-                Info = new
+                List<Element> AllElem = new FilteredElementCollector(doc.Document)
+                        .WhereElementIsNotElementType()
+                        .WhereElementIsViewIndependent()
+                        .Where(e => e.IsPhysicalElement())
+                        .ToList<Element>();
+
+                ProjectInfo = new
                 {
                     doc.Document.ProjectInformation.Address,
                     doc.Document.ProjectInformation.Author,
@@ -182,7 +187,14 @@ namespace DatenExport
                     doc.Document.ProjectInformation.OrganizationDescription,
                     doc.Document.ProjectInformation.OrganizationName,
                     doc.Document.ProjectInformation.Status,
-                }
+                    TotalElements = AllElem.Count()
+                };
+            }
+            HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, "ProjectInfo");
+            msg.Content = JsonContent.Create(new
+            {
+                Token = config.ApiSecret,
+                Info = ProjectInfo
 
             });
             httpClient.BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text + basePath);
