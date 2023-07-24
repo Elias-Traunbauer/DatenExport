@@ -1,4 +1,6 @@
-﻿using Autodesk.Revit.UI;
+﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.IFC;
+using Autodesk.Revit.UI;
 using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
@@ -9,7 +11,7 @@ using System.Windows.Forms;
 
 namespace DatenExport
 {
-    public partial class RevitConnect : Form
+    public partial class RevitConnect : System.Windows.Forms.Form
     {
         private const string baseApiUrl = "/api/Revit/";
         private readonly Config configuration;
@@ -149,28 +151,40 @@ namespace DatenExport
             });
 
         }
-
+        private object ProjectInfo { get; set; }
         private void ProvideProject()
         {
-            HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, "ProjectInfo")
+            HttpClient httpClient = new HttpClient();
+            httpClient.BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text + basePath);
+
+            if (ProjectInfo == null)
             {
-                Content = JsonContent.Create(new
+                List<Element> AllElem = new FilteredElementCollector(doc.Document)
+                        .WhereElementIsNotElementType()
+                        .WhereElementIsViewIndependent()
+                        .Where(e => e.IsPhysicalElement())
+                        .ToList<Element>();
+
+                ProjectInfo = new
                 {
-                    Token = configuration.ApiSecret,
-                    Info = new
-                    {
-                        revitDocument.Document.ProjectInformation.Address,
-                        revitDocument.Document.ProjectInformation.Author,
-                        revitDocument.Document.ProjectInformation.BuildingName,
-                        revitDocument.Document.ProjectInformation.ClientName,
-                        revitDocument.Document.ProjectInformation.IssueDate,
-                        revitDocument.Document.ProjectInformation.Name,
-                        revitDocument.Document.ProjectInformation.Number,
-                        revitDocument.Document.ProjectInformation.OrganizationDescription,
-                        revitDocument.Document.ProjectInformation.OrganizationName,
-                        revitDocument.Document.ProjectInformation.Status,
-                        revitDocument.Document.ProjectInformation.UniqueId
-                    }
+                    doc.Document.ProjectInformation.Address,
+                    doc.Document.ProjectInformation.Author,
+                    doc.Document.ProjectInformation.BuildingName,
+                    doc.Document.ProjectInformation.ClientName,
+                    doc.Document.ProjectInformation.IssueDate,
+                    doc.Document.ProjectInformation.Name,
+                    doc.Document.ProjectInformation.Number,
+                    doc.Document.ProjectInformation.OrganizationDescription,
+                    doc.Document.ProjectInformation.OrganizationName,
+                    doc.Document.ProjectInformation.Status,
+                    TotalElements = AllElem.Count()
+                };
+            }
+            HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, "ProjectInfo");
+            msg.Content = JsonContent.Create(new
+            {
+                Token = config.ApiSecret,
+                Info = ProjectInfo
 
                 })
             };

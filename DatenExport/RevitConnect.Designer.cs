@@ -196,7 +196,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(427, 237);
+            this.ClientSize = new System.Drawing.Size(425, 235);
             this.Controls.Add(this.tabControl1);
             this.Name = "RevitConnect";
             this.Text = "RevitConnect";
