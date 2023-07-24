@@ -1,44 +1,48 @@
-﻿using Autodesk.Revit.DB.IFC;
-using Autodesk.Revit.UI;
+﻿using Autodesk.Revit.UI;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace DatenExport
 {
     public partial class RevitConnect : Form
     {
-        private const string basePath = "/api/Revit/";
-        private readonly Config config;
+        private const string baseApiUrl = "/api/Revit/";
+        private readonly Config configuration;
+        private HttpClient httpClient;
 
-        public UIDocument doc;
+        private HttpRequestMessage RequestWithToken(string path)
+        {
+            return new HttpRequestMessage(HttpMethod.Post, path)
+            {
+                Content = JsonContent.Create(new
+                {
+                    Token = configuration.ApiSecret
+                })
+            };
+        }
 
-        private readonly Timer timer = new Timer();
+        public UIDocument revitDocument;
+
+        private readonly Timer networkTimer = new Timer();
 
         public RevitConnect()
         {
-            timer.Tick += Timer_Tick;
+            networkTimer.Tick += Timer_Tick;
 
-            config = Config.Load();
-            config.Save();
+            configuration = Config.Load();
+            configuration.Save();
             InitializeComponent();
-            textBoxAddress.Text = config.ApiAddress;
-            textBoxPort.Text = config.ApiPort;
+            textBoxAddress.Text = configuration.ApiAddress;
+            textBoxPort.Text = configuration.ApiPort;
             SetButtonsEnabled(false, false, false);
 
-            timer.Interval = 1000;
-            timer.Start();
+            networkTimer.Interval = 2000;
+
         }
 
         private void Timer_Tick(object sender, EventArgs e)
@@ -49,61 +53,52 @@ namespace DatenExport
 
         private void CheckIfActionRequested()
         {
-            
+
         }
 
         public Action<string> MessageCallback { get; set; }
 
         private void ButtonTestClick(object sender, EventArgs e)
         {
-            HttpClient httpClient = new HttpClient();
-
-            httpClient.BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text);
             testLabel.Text = "Testing...";
             Stopwatch t = new Stopwatch();
             t.Start();
-            try
+            httpClient.GetAsync("api/Connectivity").ContinueWith(x =>
             {
-                httpClient.GetAsync("api/Connectivity").ContinueWith(x =>
+                Invoke(() =>
                 {
-                    Invoke(new MethodInvoker(() =>
+                    if (x.Exception != null)
                     {
-                        if (x.Exception != null)
-                        {
-                            testLabel.Text = "Error when checking: " + x.Exception.InnerExceptions[0].GetType().ToString();
-                            SetButtonsEnabled(login: true, logout: false, openpanel: false);
-                            return;
-                        }
+                        testLabel.Text = "Error when checking: " + x.Exception.InnerExceptions[0].GetType().ToString();
+                        SetButtonsEnabled(login: true, logout: false, openpanel: false);
+                        return;
+                    }
+                    t.Stop();
+                    var result = x.Result;
+                    if (result.IsSuccessStatusCode)
+                    {
+                        testLabel.Text = "Success! Ping: " + t.ElapsedMilliseconds + "ms";
                         t.Stop();
-                        var result = x.Result;
-                        if (result.IsSuccessStatusCode)
-                        {
-                            testLabel.Text = "Success! Ping: " + t.ElapsedMilliseconds + "ms";
-                            t.Stop();
-                        }
-                        else
-                        {
-                            testLabel.Text = "Failed: " + result.StatusCode;
-                            t.Stop();
-                        }
-                    }));
+                    }
+                    else
+                    {
+                        testLabel.Text = "Failed: " + result.StatusCode;
+                        t.Stop();
+                    }
                 });
-            }
-            catch (Exception ex)
-            {
-                testLabel.Text = "Failed: " + ex.ToString();
-            }
-        }
-
-        private void TabPage2_Click(object sender, EventArgs e)
-        {
+            });
 
         }
 
         private void RevitConnect_Load(object sender, EventArgs e)
         {
-            CheckIfAuthenticated();
             MessageCallback("checked");
+            httpClient = new HttpClient
+            {
+                BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text + baseApiUrl)
+            };
+            CheckIfAuthenticated();
+            networkTimer.Start();
         }
 
         private void SetButtonsEnabled(bool? login = null, bool? logout = null, bool? openpanel = null)
@@ -127,16 +122,10 @@ namespace DatenExport
         private void CheckIfAuthenticated()
         {
             labelStatus.Text = "Checking for login...";
-            HttpClient httpClient = new HttpClient();
-            HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, "GetAuthenticationStatus");
-            msg.Content = JsonContent.Create(new
+
+            httpClient.SendAsync(RequestWithToken("GetAuthenticationStatus")).ContinueWith(x =>
             {
-                Token = config.ApiSecret
-            });
-            httpClient.BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text + basePath);
-            httpClient.SendAsync(msg).ContinueWith(x =>
-            {
-                Invoke(new MethodInvoker(() =>
+                Invoke(() =>
                 {
                     if (x.Exception != null)
                     {
@@ -156,44 +145,43 @@ namespace DatenExport
                         labelStatus.Text = "Not logged in, please login to continue";
                         SetButtonsEnabled(login: true, logout: false, openpanel: false);
                     }
-                }));
+                });
             });
 
         }
 
         private void ProvideProject()
         {
-            HttpClient httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text + basePath);
-
-            HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, "ProjectInfo");
-            msg.Content = JsonContent.Create(new
+            HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, "ProjectInfo")
             {
-                Token = config.ApiSecret,
-                Info = new
+                Content = JsonContent.Create(new
                 {
-                    doc.Document.ProjectInformation.Address,
-                    doc.Document.ProjectInformation.Author,
-                    doc.Document.ProjectInformation.BuildingName,
-                    doc.Document.ProjectInformation.ClientName,
-                    doc.Document.ProjectInformation.IssueDate,
-                    doc.Document.ProjectInformation.Name,
-                    doc.Document.ProjectInformation.Number,
-                    doc.Document.ProjectInformation.OrganizationDescription,
-                    doc.Document.ProjectInformation.OrganizationName,
-                    doc.Document.ProjectInformation.Status,
-                }
+                    Token = configuration.ApiSecret,
+                    Info = new
+                    {
+                        revitDocument.Document.ProjectInformation.Address,
+                        revitDocument.Document.ProjectInformation.Author,
+                        revitDocument.Document.ProjectInformation.BuildingName,
+                        revitDocument.Document.ProjectInformation.ClientName,
+                        revitDocument.Document.ProjectInformation.IssueDate,
+                        revitDocument.Document.ProjectInformation.Name,
+                        revitDocument.Document.ProjectInformation.Number,
+                        revitDocument.Document.ProjectInformation.OrganizationDescription,
+                        revitDocument.Document.ProjectInformation.OrganizationName,
+                        revitDocument.Document.ProjectInformation.Status,
+                        revitDocument.Document.ProjectInformation.UniqueId
+                    }
 
-            });
-            httpClient.BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text + basePath);
+                })
+            };
             httpClient.SendAsync(msg).ContinueWith(x =>
             {
                 if (x.Exception != null)
                 {
-                    Invoke(new MethodInvoker(() =>
+                    Invoke(() =>
                     {
                         MessageBox.Show("Failed to provide project to server: " + x.Exception.InnerExceptions[0].ToString());
-                    }));
+                    });
                     return;
                 }
             });
@@ -202,9 +190,9 @@ namespace DatenExport
 
         private void BtnSaveConfig_Click(object sender, EventArgs e)
         {
-            config.ApiAddress = textBoxAddress.Text;
-            config.ApiPort = textBoxPort.Text;
-            config.Save();
+            configuration.ApiAddress = textBoxAddress.Text;
+            configuration.ApiPort = textBoxPort.Text;
+            configuration.Save();
             CheckIfAuthenticated();
         }
 
@@ -221,20 +209,18 @@ namespace DatenExport
         private void BtnLogin_Click(object sender, EventArgs e)
         {
             // get secret from server
-            HttpClient httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text + basePath);
-
             HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Get, "AuthenticationToken");
 
             httpClient.SendAsync(msg).ContinueWith(x =>
             {
-                dynamic json = JsonConvert.DeserializeObject(x.Result.Content.ReadAsStringAsync().GetAwaiter().GetResult());
-                config.ApiSecret = json.token;
-                config.Save();
-                Invoke(new MethodInvoker(() =>
+                string result = x.Result.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                dynamic json = JsonConvert.DeserializeObject(result);
+                configuration.ApiSecret = json.token;
+                configuration.Save();
+                Invoke(() =>
                 {
-                    Clipboard.SetText(config.ApiSecret);
-                }));
+                    Clipboard.SetText(configuration.ApiSecret);
+                });
             });
 
             Process.Start("http://localhost:3000/revit/linkAccount");
@@ -242,13 +228,28 @@ namespace DatenExport
 
         private void BtnLogout_Click(object sender, EventArgs e)
         {
-            config.ApiSecret = "";
-            config.Save();
+            configuration.ApiSecret = "";
+            configuration.Save();
         }
 
         private void BtnOpenPanel_Click(object sender, EventArgs e)
         {
             Process.Start("http://localhost:3000/revit/task");
+        }
+
+        private void Invoke(Action action)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new MethodInvoker(() =>
+                {
+                    action();
+                }));
+            }
+            else
+            {
+                action();
+            }
         }
     }
 

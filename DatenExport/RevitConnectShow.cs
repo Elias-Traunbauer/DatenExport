@@ -26,7 +26,7 @@ namespace DatenExport
                 RevitConnect connect = new RevitConnect
                 {
                     MessageCallback = action,
-                    doc = commandData.Application.ActiveUIDocument
+                    revitDocument = commandData.Application.ActiveUIDocument
                 };
                 connect.ShowDialog();
             });
