@@ -1,17 +1,18 @@
-﻿using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.IFC;
-using Autodesk.Revit.UI;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Threading.Tasks;
+using System.Windows.Controls;
 using System.Windows.Forms;
 
 namespace DatenExport
 {
-    public partial class RevitConnect : System.Windows.Forms.Form
+    public partial class RevitConnect : Form
     {
         private const string baseApiUrl = "/api/Revit/";
         private readonly Config configuration;
@@ -28,7 +29,7 @@ namespace DatenExport
             };
         }
 
-        public UIDocument revitDocument;
+        public Autodesk.Revit.UI.UIDocument revitDocument;
 
         private readonly Timer networkTimer = new Timer();
 
@@ -52,10 +53,80 @@ namespace DatenExport
             CheckIfAuthenticated();
             CheckIfActionRequested();
         }
-
+        bool uploadRunning = false;
         private void CheckIfActionRequested()
         {
+            if (uploadRunning)
+            {
+                return;
+            }
+            httpClient.SendAsync(RequestWithToken("GetTODO")).ContinueWith((x) =>
+            {
+                if (x.Exception != null)
+                {
+                    return;
+                }
+                if (x.Result.StatusCode != System.Net.HttpStatusCode.OK)
+                {
+                    return;
+                }
+                string result = x.Result.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                dynamic json = JsonConvert.DeserializeObject(result);
+                string actionStatus = json.actionStatus; // "idle" | "upload"
 
+                if (actionStatus == "upload" && !uploadRunning)
+                {
+                    uploadRunning = true;
+                    Invoke(() => MessageBox.Show("Upload requested"));
+                    UploadDocument().ContinueWith(y =>
+                    {
+                        if (y.Exception != null)
+                        {
+                            MessageBox.Show("Error while uploading: " + x.Exception.InnerExceptions[0].GetType().ToString());
+                            return;
+                        }
+                        MessageBox.Show("Upload successful");
+                    });
+                }
+            });
+        }
+
+        private async Task UploadDocument()
+        {
+            // go through all elements and put them in chunks of 100 elements and upload them
+
+            List<Autodesk.Revit.DB.Element> AllElem = new Autodesk.Revit.DB.FilteredElementCollector(revitDocument.Document)
+                    .WhereElementIsNotElementType()
+                    .WhereElementIsViewIndependent()
+                    .Where(e => e.IsPhysicalElement())
+                    .ToList<Autodesk.Revit.DB.Element>();
+
+            for (int i = 0; i < AllElem.Count() / 100 + 1; i++)
+            {
+                List<Autodesk.Revit.DB.Element> chunk = AllElem.Skip(i * 100).Take(100).ToList<Autodesk.Revit.DB.Element>();
+
+                var res = from element in chunk
+                          select new
+                          {
+                              Name = element.Name,
+                              RevitElementId = element.Id.IntegerValue,
+                              Parameters = element.GetOrderedParameters().Select(p => new
+                              {
+                                  p.Definition.Name,
+                                  Value = p.AsValueString()
+                              })
+                          };
+
+                var content = JsonContent.Create(new
+                {
+                    Token = configuration.ApiSecret,
+                    Elements = res
+                });
+                var result = await httpClient.PostAsync("Upload", content);
+                string contentRes = await result.Content.ReadAsStringAsync();
+            }
+            httpClient.SendAsync(RequestWithToken("FinishUpload")).Wait();
+            uploadRunning = false;
         }
 
         public Action<string> MessageCallback { get; set; }
@@ -154,51 +225,48 @@ namespace DatenExport
         private object ProjectInfo { get; set; }
         private void ProvideProject()
         {
-            HttpClient httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri("http://" + textBoxAddress.Text + ":" + textBoxPort.Text + basePath);
-
             if (ProjectInfo == null)
             {
-                List<Element> AllElem = new FilteredElementCollector(doc.Document)
+                List<Autodesk.Revit.DB.Element> AllElem = new Autodesk.Revit.DB.FilteredElementCollector(revitDocument.Document)
                         .WhereElementIsNotElementType()
                         .WhereElementIsViewIndependent()
                         .Where(e => e.IsPhysicalElement())
-                        .ToList<Element>();
+                        .ToList<Autodesk.Revit.DB.Element>();
 
                 ProjectInfo = new
                 {
-                    doc.Document.ProjectInformation.Address,
-                    doc.Document.ProjectInformation.Author,
-                    doc.Document.ProjectInformation.BuildingName,
-                    doc.Document.ProjectInformation.ClientName,
-                    doc.Document.ProjectInformation.IssueDate,
-                    doc.Document.ProjectInformation.Name,
-                    doc.Document.ProjectInformation.Number,
-                    doc.Document.ProjectInformation.OrganizationDescription,
-                    doc.Document.ProjectInformation.OrganizationName,
-                    doc.Document.ProjectInformation.Status,
+                    revitDocument.Document.ProjectInformation.Address,
+                    revitDocument.Document.ProjectInformation.Author,
+                    revitDocument.Document.ProjectInformation.BuildingName,
+                    revitDocument.Document.ProjectInformation.ClientName,
+                    revitDocument.Document.ProjectInformation.IssueDate,
+                    revitDocument.Document.ProjectInformation.Name,
+                    revitDocument.Document.ProjectInformation.Number,
+                    revitDocument.Document.ProjectInformation.OrganizationDescription,
+                    revitDocument.Document.ProjectInformation.OrganizationName,
+                    revitDocument.Document.ProjectInformation.Status,
+                    revitDocument.Document.ProjectInformation.UniqueId,
                     TotalElements = AllElem.Count()
                 };
             }
             HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Post, "ProjectInfo");
             msg.Content = JsonContent.Create(new
             {
-                Token = config.ApiSecret,
+                Token = configuration.ApiSecret,
                 Info = ProjectInfo
 
-                })
-            };
+            });
             httpClient.SendAsync(msg).ContinueWith(x =>
-            {
-                if (x.Exception != null)
                 {
-                    Invoke(() =>
+                    if (x.Exception != null)
+                    {
+                        Invoke(() =>
                     {
                         MessageBox.Show("Failed to provide project to server: " + x.Exception.InnerExceptions[0].ToString());
                     });
-                    return;
-                }
-            });
+                        return;
+                    }
+                });
 
         }
 
@@ -319,3 +387,4 @@ namespace DatenExport
         }
     }
 }
+
